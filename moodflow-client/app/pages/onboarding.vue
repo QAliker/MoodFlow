@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { useGenreStore } from '~/stores/genre'
-
 definePageMeta({ middleware: 'auth', layout: false })
 
 const genreStore = useGenreStore()
@@ -14,11 +12,7 @@ const MIN = 3
 const MAX = 5
 const isValid = computed(() => selectedIds.value.length >= MIN && selectedIds.value.length <= MAX)
 
-const { data, error } = await useFetch<{ data: typeof genreStore.genres }>('/api/genres', {
-  baseURL: useRuntimeConfig().public.apiUrl,
-  credentials: 'include',
-})
-if (data.value) genreStore.genres = data.value.data
+await genreStore.fetchGenres()
 
 async function submit(): Promise<void> {
   if (!isValid.value) return
@@ -60,14 +54,14 @@ async function submit(): Promise<void> {
 
       <!-- Card -->
       <div class="bg-gray-900/80 backdrop-blur-xl border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/40">
-        <template v-if="genreStore.genres.length > 0">
-          <GenreSelector v-model="selectedIds" :genres="genreStore.genres" />
-        </template>
-        <template v-else>
+        <template v-if="genreStore.loading">
           <div class="flex flex-col items-center justify-center py-16 gap-3 text-gray-500">
             <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin" />
             <span class="text-sm">Chargement des genres...</span>
           </div>
+        </template>
+        <template v-else>
+          <GenreSelector v-model="selectedIds" :genres="genreStore.genres" />
         </template>
       </div>
 
@@ -90,7 +84,5 @@ async function submit(): Promise<void> {
         </UButton>
       </div>
     </div>
-
-    <UToaster />
   </div>
 </template>

@@ -2,17 +2,14 @@ import { defineStore } from 'pinia'
 import type { Genre } from '~/stores/auth'
 
 export const useGenreStore = defineStore('genre', () => {
-  const config = useRuntimeConfig()
+  const apiFetch = useApiFetch()
   const genres = ref<Genre[]>([])
   const loading = ref(false)
 
   async function fetchGenres(): Promise<void> {
     loading.value = true
     try {
-      const response = await $fetch<{ data: Genre[] }>('/api/genres', {
-        baseURL: config.public.apiUrl,
-        credentials: 'include',
-      })
+      const response = await apiFetch<{ data: Genre[] }>('/api/genres')
       genres.value = response.data
     } finally {
       loading.value = false
@@ -20,10 +17,8 @@ export const useGenreStore = defineStore('genre', () => {
   }
 
   async function updateUserGenres(genreIds: number[]): Promise<void> {
-    await $fetch('/api/users/me/genres', {
-      baseURL: config.public.apiUrl,
+    await apiFetch('/api/users/me/genres', {
       method: 'PUT',
-      credentials: 'include',
       body: { genre_ids: genreIds },
     })
   }

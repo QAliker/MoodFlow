@@ -13,7 +13,7 @@ const items = [[
     label: 'Sign out',
     icon: 'i-heroicons-arrow-right-on-rectangle',
     color: 'error' as const,
-    click: logout,
+    onSelect: logout,
   },
 ]]
 </script>
