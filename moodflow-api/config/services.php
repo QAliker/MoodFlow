@@ -39,4 +39,9 @@ return [
         'base_url' => env('DEEZER_API_URL', 'https://api.deezer.com'),
     ],
 
+    'openweathermap' => [
+        'key'      => env('OPENWEATHER_API_KEY', ''),
+        'base_url' => env('OPENWEATHER_API_URL', 'https://api.openweathermap.org/data/2.5'),
+    ],
+
 ];
