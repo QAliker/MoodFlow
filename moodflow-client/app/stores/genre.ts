@@ -1,12 +1,5 @@
 import { defineStore } from 'pinia'
-
-interface Genre {
-  id: number
-  name: string
-  slug: string
-  icon: string
-  deezer_id: number | null
-}
+import type { Genre } from '~/stores/auth'
 
 export const useGenreStore = defineStore('genre', () => {
   const config = useRuntimeConfig()

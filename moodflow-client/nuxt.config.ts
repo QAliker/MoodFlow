@@ -5,8 +5,20 @@ export default defineNuxtConfig({
 
   modules: [
     '@nuxt/ui',
+    '@nuxt/fonts',
     '@pinia/nuxt',
   ],
+
+  fonts: {
+    families: [
+      { name: 'Inter', provider: 'google' },
+    ],
+    defaults: {
+      weights: [400, 500, 600, 700],
+    },
+  },
+
+  css: ['~/assets/css/main.css'],
 
   runtimeConfig: {
     public: {

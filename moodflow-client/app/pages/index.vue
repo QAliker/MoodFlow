@@ -1,22 +1,16 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
-const { logout } = useAuth()
 const authStore = useAuthStore()
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 p-4">
-    <UCard class="w-full max-w-sm">
-      <template #header>
-        <h1 class="text-xl font-semibold">Welcome, {{ authStore.user?.name }}</h1>
-      </template>
-
+  <UContainer class="py-12">
+    <div class="flex flex-col gap-2">
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+        Welcome back, {{ authStore.user?.name }}
+      </h1>
       <p class="text-gray-500 text-sm">{{ authStore.user?.email }}</p>
-
-      <template #footer>
-        <UButton label="Sign out" color="neutral" variant="outline" block @click="logout" />
-      </template>
-    </UCard>
-  </div>
+    </div>
+  </UContainer>
 </template>

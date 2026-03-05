@@ -4,6 +4,8 @@ export interface Genre {
   id: number
   name: string
   slug: string
+  icon: string
+  deezer_id: number | null
 }
 
 export interface User {
