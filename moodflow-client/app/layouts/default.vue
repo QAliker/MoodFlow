@@ -1,13 +1,5 @@
-<script setup lang="ts">
-const moodBg = useState<string>('moodBg', () => '')
-</script>
-
 <template>
-  <div
-    class="min-h-screen transition-all duration-700"
-    :class="moodBg ? '' : 'bg-gray-950'"
-    :style="moodBg ? { background: moodBg } : {}"
-  >
+  <div class="relative z-[1] min-h-screen">
     <AppNavbar />
     <main>
       <slot />

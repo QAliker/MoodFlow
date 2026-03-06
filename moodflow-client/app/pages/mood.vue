@@ -2,6 +2,9 @@
 definePageMeta({ middleware: 'auth' })
 
 const moodStore = useMoodStore()
+const { weather, coords, fetch: fetchWeather } = useWeather()
+
+onMounted(fetchWeather)
 
 type InputMode = 'emoji' | 'slider'
 const mode = ref<InputMode>('emoji')
@@ -21,7 +24,7 @@ async function onEmojiSelect(payload: { emotion: string; energy: number; valence
     valence:   payload.valence,
     intensity: payload.intensity,
   })
-  await moodStore.analyze()
+  await moodStore.analyze(coords.value)
 }
 
 function onSlidersUpdate(values: { energy: number; valence: number; intensity: number }) {
@@ -55,21 +58,12 @@ const sliderMood = computed((): SliderMood => {
   return { emoji: '😴', label: 'Endormi' }
 })
 
-// Feature 3 — sliders => gradient de fond dynamique
-const moodBgGradient = computed(() => {
-  const { energy, valence, intensity } = moodStore.form
-  // Hue : 240° (bleu/triste) → 30° (orange/heureux) selon la valence
-  const hue = Math.round(240 + ((valence + 1) / 2) * (30 - 240))
-  const sat = Math.round(40 + (intensity / 100) * 40)  // 40% → 80%
-  const light = Math.round(6 + (energy / 100) * 8)     // 6% → 14%
-  const hue2 = (hue + 50) % 360
-  return `radial-gradient(ellipse at 25% 25%, hsl(${hue}, ${sat}%, ${light + 4}%) 0%, transparent 55%), radial-gradient(ellipse at 75% 75%, hsl(${hue2}, ${sat - 10}%, ${light}%) 0%, transparent 55%), hsl(${hue}, 15%, 4%)`
-})
-
-// Sync vers le layout, reset au démontage
-const moodBg = useState<string>('moodBg', () => '')
-watchEffect(() => { moodBg.value = moodBgGradient.value })
-onUnmounted(() => { moodBg.value = '' })
+// Feature 3 — canvas réactif (MoodCanvas) — valeurs passées en props
+// Post-analyze : utilise les valeurs ajustées par le backend (météo/contexte)
+// Avant analyze : réagit aux sliders en temps réel
+const visualEnergy    = computed(() => moodStore.moodProfile?.energy    ?? moodStore.form.energy)
+const visualValence   = computed(() => moodStore.moodProfile?.valence   ?? moodStore.form.valence)
+const visualIntensity = computed(() => moodStore.moodProfile?.intensity ?? moodStore.form.intensity)
 
 // Sync la playlist dans le store player quand les tracks arrivent
 const playerStore = usePlayerStore()
@@ -84,6 +78,13 @@ watch(() => moodStore.error, (err) => {
 </script>
 
 <template>
+  <!-- Feature 3 — canvas particules réactif au mood -->
+  <VisualMoodCanvas
+    :energy="visualEnergy"
+    :valence="visualValence"
+    :intensity="visualIntensity"
+  />
+
   <UContainer class="py-12 max-w-2xl">
     <!-- Header -->
     <div class="mb-10 text-center space-y-2">
@@ -189,7 +190,7 @@ watch(() => moodStore.error, (err) => {
           block
           :loading="moodStore.loading"
           :disabled="moodStore.loading"
-          @click="moodStore.analyze()"
+          @click="moodStore.analyze(coords)"
         >
           <UIcon name="i-heroicons-musical-note" class="w-5 h-5" />
           Générer ma playlist

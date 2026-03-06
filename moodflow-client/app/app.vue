@@ -1,3 +1,7 @@
+<script setup lang="ts">
+useHead({ bodyAttrs: { class: 'bg-gray-950' } })
+</script>
+
 <template>
   <UApp>
     <NuxtRouteAnnouncer />
