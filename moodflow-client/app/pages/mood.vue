@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { MoodForm } from '~/stores/mood'
-
 definePageMeta({ middleware: 'auth' })
 
 const moodStore = useMoodStore()
@@ -14,14 +12,16 @@ const sliderValues = computed(() => ({
   intensity: moodStore.form.intensity,
 }))
 
-function onEmojiSelect(payload: { emotion: string; energy: number; valence: number; intensity: number }) {
+// Feature 1 — emoji click => playlist immediate, pas de bouton
+async function onEmojiSelect(payload: { emotion: string; energy: number; valence: number; intensity: number }) {
   moodStore.setForm({
-    source:   'emoji',
-    emotion:  payload.emotion,
-    energy:   payload.energy,
-    valence:  payload.valence,
+    source:    'emoji',
+    emotion:   payload.emotion,
+    energy:    payload.energy,
+    valence:   payload.valence,
     intensity: payload.intensity,
   })
+  await moodStore.analyze()
 }
 
 function onSlidersUpdate(values: { energy: number; valence: number; intensity: number }) {
@@ -39,13 +39,43 @@ function switchMode(next: InputMode) {
   moodStore.setForm({ source: next, emotion: null })
 }
 
-async function generate() {
-  await moodStore.analyze()
-}
+// Feature 2 — sliders => emoji/emotion dynamique
+interface SliderMood { emoji: string; label: string }
 
-const hasSelection = computed(() =>
-  mode.value === 'slider' || moodStore.form.emotion !== null,
-)
+const sliderMood = computed((): SliderMood => {
+  const { energy, valence } = moodStore.form
+  if (energy >= 70 && valence >= 0.3)  return { emoji: '🔥', label: 'Intense' }
+  if (energy >= 70 && valence <= -0.3) return { emoji: '😡', label: 'En colère' }
+  if (energy >= 70)                    return { emoji: '⚡', label: 'Agité' }
+  if (energy >= 35 && valence >= 0.3)  return { emoji: '😊', label: 'Joyeux' }
+  if (energy >= 35 && valence <= -0.3) return { emoji: '😔', label: 'Mélancolique' }
+  if (energy >= 35)                    return { emoji: '😐', label: 'Neutre' }
+  if (valence >= 0.3)                  return { emoji: '😌', label: 'Serein' }
+  if (valence <= -0.3)                 return { emoji: '💔', label: 'Triste' }
+  return { emoji: '😴', label: 'Endormi' }
+})
+
+// Feature 3 — sliders => gradient de fond dynamique
+const moodBgGradient = computed(() => {
+  const { energy, valence, intensity } = moodStore.form
+  // Hue : 240° (bleu/triste) → 30° (orange/heureux) selon la valence
+  const hue = Math.round(240 + ((valence + 1) / 2) * (30 - 240))
+  const sat = Math.round(40 + (intensity / 100) * 40)  // 40% → 80%
+  const light = Math.round(6 + (energy / 100) * 8)     // 6% → 14%
+  const hue2 = (hue + 50) % 360
+  return `radial-gradient(ellipse at 25% 25%, hsl(${hue}, ${sat}%, ${light + 4}%) 0%, transparent 55%), radial-gradient(ellipse at 75% 75%, hsl(${hue2}, ${sat - 10}%, ${light}%) 0%, transparent 55%), hsl(${hue}, 15%, 4%)`
+})
+
+// Sync vers le layout, reset au démontage
+const moodBg = useState<string>('moodBg', () => '')
+watchEffect(() => { moodBg.value = moodBgGradient.value })
+onUnmounted(() => { moodBg.value = '' })
+
+// Sync la playlist dans le store player quand les tracks arrivent
+const playerStore = usePlayerStore()
+watch(() => moodStore.tracks, (tracks) => {
+  playerStore.setPlaylist(tracks)
+})
 
 const toast = useToast()
 watch(() => moodStore.error, (err) => {
@@ -113,7 +143,25 @@ watch(() => moodStore.error, (err) => {
           />
         </Transition>
 
-        <!-- Émotion sélectionnée (mode emoji) -->
+        <!-- Feature 2 : feedback emoji/emotion pour le mode slider -->
+        <Transition
+          enter-active-class="transition duration-300"
+          enter-from-class="opacity-0 scale-90"
+          enter-to-class="opacity-100 scale-100"
+          leave-active-class="transition duration-200"
+          leave-from-class="opacity-100 scale-100"
+          leave-to-class="opacity-0 scale-90"
+        >
+          <div
+            v-if="mode === 'slider'"
+            class="flex items-center justify-center gap-3 py-2"
+          >
+            <span class="text-4xl leading-none transition-all duration-300">{{ sliderMood.emoji }}</span>
+            <span class="text-lg font-semibold text-white">{{ sliderMood.label }}</span>
+          </div>
+        </Transition>
+
+        <!-- Emotion selectionnée (mode emoji) -->
         <Transition
           enter-active-class="transition duration-200"
           enter-from-class="opacity-0 scale-95"
@@ -134,19 +182,35 @@ watch(() => moodStore.error, (err) => {
           </div>
         </Transition>
 
-        <!-- Bouton générer -->
+        <!-- Bouton générer (slider uniquement — en emoji c'est auto) -->
         <UButton
+          v-if="mode === 'slider'"
           size="xl"
           block
           :loading="moodStore.loading"
-          :disabled="!hasSelection || moodStore.loading"
-          @click="generate"
+          :disabled="moodStore.loading"
+          @click="moodStore.analyze()"
         >
           <UIcon name="i-heroicons-musical-note" class="w-5 h-5" />
           Générer ma playlist
         </UButton>
+
       </div>
     </UCard>
+
+    <!-- Loading indicator mode emoji -->
+    <Transition
+      enter-active-class="transition duration-200"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+    >
+      <div v-if="mode === 'emoji' && moodStore.loading" class="mt-8 flex justify-center">
+        <div class="flex items-center gap-3 text-primary-400">
+          <UIcon name="i-heroicons-musical-note" class="w-6 h-6 animate-bounce" />
+          <span class="text-sm font-medium">Génération de ta playlist…</span>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Résultats -->
     <Transition
@@ -154,7 +218,7 @@ watch(() => moodStore.error, (err) => {
       enter-from-class="opacity-0 translate-y-4"
       enter-to-class="opacity-100 translate-y-0"
     >
-      <div v-if="moodStore.moodProfile" class="mt-10 space-y-6">
+      <div v-if="moodStore.moodProfile" class="mt-10 space-y-4 pb-24">
         <!-- Mood résumé -->
         <div class="flex items-center justify-between">
           <div>
@@ -175,35 +239,12 @@ watch(() => moodStore.error, (err) => {
           </div>
         </div>
 
-        <!-- Tracks -->
-        <div class="space-y-3">
-          <div
-            v-for="track in moodStore.tracks"
-            :key="track.deezer_id"
-            class="flex items-center gap-4 p-4 rounded-2xl bg-gray-900/60 border border-white/5 hover:border-white/15 transition-colors group"
-          >
-            <img
-              :src="track.cover_url"
-              :alt="track.album"
-              class="w-12 h-12 rounded-xl object-cover flex-shrink-0"
-            >
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-semibold text-white truncate">{{ track.title }}</p>
-              <p class="text-xs text-gray-400 truncate">{{ track.artist }}</p>
-            </div>
-            <UButton
-              v-if="track.preview_url"
-              :to="track.preview_url"
-              target="_blank"
-              variant="ghost"
-              color="neutral"
-              size="sm"
-              icon="i-heroicons-play-circle"
-              class="opacity-0 group-hover:opacity-100 transition-opacity"
-            />
-          </div>
-        </div>
+        <!-- Liste des tracks -->
+        <MusicTrackList :tracks="moodStore.tracks" />
       </div>
     </Transition>
   </UContainer>
+
+  <!-- Player audio sticky en bas de page -->
+  <MusicTrackPlayer />
 </template>

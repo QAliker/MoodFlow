@@ -1,3 +1,5 @@
+const MUTATING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE']
+
 export const useApiFetch = () => {
   const config = useRuntimeConfig()
 
@@ -7,11 +9,24 @@ export const useApiFetch = () => {
     return match ? decodeURIComponent(match[1]) : ''
   }
 
+  const ensureCsrf = async (): Promise<void> => {
+    if (!import.meta.client) return
+    if (getXsrfToken()) return
+    await $fetch('/sanctum/csrf-cookie', {
+      baseURL: config.public.apiUrl,
+      credentials: 'include',
+    })
+  }
+
   return $fetch.create({
     baseURL: config.public.apiUrl,
     credentials: 'include',
     headers: { Accept: 'application/json' },
-    onRequest({ options }) {
+    async onRequest({ options }) {
+      const method = (options.method ?? 'GET').toString().toUpperCase()
+      if (MUTATING_METHODS.includes(method)) {
+        await ensureCsrf()
+      }
       const token = getXsrfToken()
       if (token) {
         options.headers = { ...options.headers as Record<string, string>, 'X-XSRF-TOKEN': token }
