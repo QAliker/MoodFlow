@@ -2,6 +2,7 @@
 definePageMeta({ middleware: 'auth', layout: false })
 
 const genreStore = useGenreStore()
+const { fetchUser } = useAuth()
 const router = useRouter()
 const toast = useToast()
 
@@ -19,6 +20,7 @@ async function submit(): Promise<void> {
   submitting.value = true
   try {
     await genreStore.updateUserGenres(selectedIds.value)
+    await fetchUser()
     toast.add({ title: 'Preferences sauvegardees !', color: 'success', icon: 'i-heroicons-musical-note' })
     router.push('/mood')
   } catch {
