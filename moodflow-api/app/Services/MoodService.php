@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ActivityModeUsage;
 use App\Models\Mood;
 use App\Models\User;
 use Carbon\Carbon;
@@ -12,17 +13,20 @@ class MoodService
     public function __construct(
         private readonly DeezerService $deezer,
         private readonly ContextService $context,
+        private readonly ActivityModeService $activityMode,
     ) {}
 
     /**
-     * Generate a mood-based track recommendation and persist the Mood.
-     *
-     * @param  array{source: string, energy: int, valence: float, intensity: int, weather?: string|null}  $moodInput
+     * @param  array{source: string, energy: int, valence: float, intensity: int, weather?: string|null, activity_mode?: string|null}  $moodInput
      * @return array{mood: Mood, tracks: array<int, array<string, mixed>>}
      */
     public function recommend(User $user, array $moodInput): array
     {
-        // 1. Apply passive context modifier
+        $modeSlug = $moodInput['activity_mode'] ?? null;
+        if ($modeSlug !== null) {
+            $moodInput = $this->activityMode->merge($moodInput, $modeSlug);
+        }
+
         $modifier = $this->context->getModifier(
             Carbon::now(),
             $moodInput['weather'] ?? null,
@@ -30,31 +34,29 @@ class MoodService
 
         $adjusted = $this->applyModifier($moodInput, $modifier);
 
-        // 2. Select keywords and emotion label from adjusted mood
-        [$label, $primary, $secondary] = $this->selectKeywords(
-            $adjusted['energy'],
-            $adjusted['valence'],
+        [$label, $primary, $secondary] = $this->resolveKeywords($adjusted['energy'], $adjusted['valence'], $moodInput);
+
+        $user->loadMissing('genres');
+        $tracks = $this->fetchTracks(
+            $user->genres,
+            $primary,
+            $secondary,
+            $moodInput['mode_genres_boost'] ?? [],
         );
 
-        // 3. Fetch, deduplicate and shuffle tracks
-        $user->loadMissing('genres');
-        $tracks = $this->fetchTracks($user->genres, $primary, $secondary);
+        $mood = $this->saveMood($user, $moodInput, $adjusted, $modifier, $label, $tracks, $modeSlug);
 
-        // 4. Persist
-        $mood = $this->saveMood($user, $moodInput, $adjusted, $modifier, $label, $tracks);
+        if ($modeSlug !== null) {
+            ActivityModeUsage::create([
+                'user_id'   => $user->id,
+                'mode_slug' => $modeSlug,
+                'used_at'   => Carbon::now(),
+            ]);
+        }
 
         return ['mood' => $mood, 'tracks' => $tracks];
     }
 
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
-
-    /**
-     * @param  array{energy: int, valence: float, intensity: int}  $moodInput
-     * @param  array{energy_mod: int, valence_mod: int, intensity_mod: int}  $modifier
-     * @return array{energy: int, valence: float, intensity: int}
-     */
     private function applyModifier(array $moodInput, array $modifier): array
     {
         return [
@@ -64,15 +66,31 @@ class MoodService
         ];
     }
 
+    private function resolveKeywords(float $energy, float $valence, array $moodInput): array
+    {
+        if (isset($moodInput['mode_keywords']) && count($moodInput['mode_keywords']) >= 2) {
+            $primary   = $moodInput['mode_keywords'][0];
+            $secondary = $moodInput['mode_keywords'][1];
+
+            if ($moodInput['filter_no_lyrics'] ?? false) {
+                $primary .= ' instrumental';
+            }
+
+            [$label] = $this->selectKeywords($energy, $valence);
+
+            return [$label, $primary, $secondary];
+        }
+
+        return $this->selectKeywords($energy, $valence);
+    }
+
     /**
-     * Return [emotionLabel, primaryKeyword, secondaryKeyword] based on adjusted mood values.
-     *
      * @return array{string, string, string}
      */
     private function selectKeywords(float $energy, float $valence): array
     {
         return match (true) {
-            $energy > 70 && $valence > 0.3  => ['energetic',  'party',         'energy'],
+            $energy > 70 && $valence > 0.3  => ['energetic',   'party',         'energy'],
             $energy < 30 && $valence < -0.3 => ['melancholic', 'sad',           'melancholic'],
             $energy < 30 && $valence > 0.3  => ['calm',        'chill',         'relax'],
             $energy > 70 && $valence < -0.3 => ['intense',     'rage',          'dark'],
@@ -85,22 +103,20 @@ class MoodService
     }
 
     /**
-     * Fetch tracks from Deezer for each genre using primary keyword,
-     * then fall back to secondary keyword if fewer than 15 tracks are found.
-     *
      * @param  Collection<int, \App\Models\Genre>  $genres
+     * @param  array<int, string>  $boostGenres
      * @return array<int, array<string, mixed>>
      */
-    private function fetchTracks(Collection $genres, string $primary, string $secondary): array
+    private function fetchTracks(Collection $genres, string $primary, string $secondary, array $boostGenres = []): array
     {
-        if ($genres->isEmpty()) {
+        if ($genres->isEmpty() && empty($boostGenres)) {
             return [];
         }
 
-        $tracks = $this->searchByKeyword($genres, $primary);
+        $tracks = $this->searchByKeyword($genres, $primary, $boostGenres);
 
         if (count($tracks) < 15) {
-            $second = $this->searchByKeyword($genres, $secondary);
+            $second = $this->searchByKeyword($genres, $secondary, $boostGenres);
             $tracks = $this->mergeAndDedup($tracks, $second);
         }
 
@@ -110,17 +126,21 @@ class MoodService
     }
 
     /**
-     * Search Deezer for "{keyword} {genre}" for each genre and return deduplicated tracks.
-     *
      * @param  Collection<int, \App\Models\Genre>  $genres
+     * @param  array<int, string>  $boostGenres
      * @return array<int, array<string, mixed>>
      */
-    private function searchByKeyword(Collection $genres, string $keyword): array
+    private function searchByKeyword(Collection $genres, string $keyword, array $boostGenres = []): array
     {
         $results = [];
 
         foreach ($genres as $genre) {
-            $found = $this->deezer->searchTracks("{$keyword} {$genre->name}", 10);
+            $found   = $this->deezer->searchTracks("{$keyword} {$genre->name}", 10);
+            $results = $this->mergeAndDedup($results, $found);
+        }
+
+        foreach ($boostGenres as $boostGenre) {
+            $found   = $this->deezer->searchTracks("{$keyword} {$boostGenre}", 10);
             $results = $this->mergeAndDedup($results, $found);
         }
 
@@ -128,8 +148,6 @@ class MoodService
     }
 
     /**
-     * Merge two track arrays and deduplicate by deezer_id.
-     *
      * @param  array<int, array<string, mixed>>  $base
      * @param  array<int, array<string, mixed>>  $incoming
      * @return array<int, array<string, mixed>>
@@ -156,6 +174,7 @@ class MoodService
         array $modifier,
         string $label,
         array $tracks,
+        ?string $modeSlug,
     ): Mood {
         return Mood::create([
             'user_id'   => $user->id,
@@ -165,9 +184,10 @@ class MoodService
             'valence'   => $moodInput['valence'],
             'intensity' => $moodInput['intensity'],
             'context'   => [
-                'weather'  => $moodInput['weather'] ?? null,
-                'modifier' => $modifier,
-                'adjusted' => $adjusted,
+                'weather'       => $moodInput['weather'] ?? null,
+                'modifier'      => $modifier,
+                'adjusted'      => $adjusted,
+                'activity_mode' => $modeSlug,
             ],
             'tracks'    => $tracks,
         ]);

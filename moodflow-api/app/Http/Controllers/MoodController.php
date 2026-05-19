@@ -29,12 +29,13 @@ class MoodController extends Controller
         }
 
         $moodInput = [
-            'source'    => $data['source'],
-            'emotion'   => $data['emotion'] ?? null,
-            'energy'    => $data['energy'],
-            'valence'   => $data['valence'],
-            'intensity' => $data['intensity'],
-            'weather'   => $weather,
+            'source'        => $data['source'],
+            'emotion'       => $data['emotion'] ?? null,
+            'energy'        => $data['energy'],
+            'valence'       => $data['valence'],
+            'intensity'     => $data['intensity'],
+            'weather'       => $weather,
+            'activity_mode' => $data['activity_mode'] ?? null,
         ];
 
         $result = $this->moodService->recommend($request->user(), $moodInput);

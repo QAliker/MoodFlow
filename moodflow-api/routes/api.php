@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ActivityModeController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GenreController;
 use App\Http\Controllers\MoodController;
@@ -12,6 +13,7 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 
 Route::get('/genres', [GenreController::class, 'index']);
+Route::get('/activity-modes', [ActivityModeController::class, 'index']);
 Route::get('/weather', WeatherController::class);
 
 Route::middleware('auth:sanctum')->group(function (): void {
