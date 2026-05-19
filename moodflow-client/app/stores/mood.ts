@@ -38,6 +38,7 @@ interface AnalyzePayload {
   intensity: number
   lat?: number | null
   lon?: number | null
+  activity_mode?: string | null
 }
 
 export const useMoodStore = defineStore('mood', () => {
@@ -56,9 +57,22 @@ export const useMoodStore = defineStore('mood', () => {
   const history = ref<MoodProfile[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const activityMode = ref<string | null>(null)
+  const suggestedMode = ref<string | null>(null)
 
   function setForm(values: Partial<MoodForm>) {
     form.value = { ...form.value, ...values }
+  }
+
+  function setActivityMode(slug: string, defaults?: { energy: number; valence: number; intensity: number }) {
+    activityMode.value = slug
+    if (defaults) {
+      form.value = { ...form.value, energy: defaults.energy, valence: defaults.valence, intensity: defaults.intensity }
+    }
+  }
+
+  function clearActivityMode() {
+    activityMode.value = null
   }
 
   async function analyze(coords?: { lat: number; lon: number } | null): Promise<void> {
@@ -66,22 +80,24 @@ export const useMoodStore = defineStore('mood', () => {
     error.value = null
     try {
       const payload: AnalyzePayload = {
-        source:    form.value.source,
-        emotion:   form.value.emotion,
-        energy:    form.value.energy,
-        valence:   form.value.valence,
-        intensity: form.value.intensity,
-        lat:       coords?.lat ?? null,
-        lon:       coords?.lon ?? null,
+        source:        form.value.source,
+        emotion:       form.value.emotion,
+        energy:        form.value.energy,
+        valence:       form.value.valence,
+        intensity:     form.value.intensity,
+        lat:           coords?.lat ?? null,
+        lon:           coords?.lon ?? null,
+        activity_mode: activityMode.value,
       }
 
-      const response = await apiFetch<{ data: { mood: MoodProfile; tracks: Track[] } }>(
+      const response = await apiFetch<{ data: { mood: MoodProfile; tracks: Track[]; suggested_mode: string | null } }>(
         '/api/mood/analyze',
         { method: 'POST', body: payload },
       )
 
       moodProfile.value = response.data.mood
       tracks.value = response.data.tracks
+      suggestedMode.value = response.data.suggested_mode ?? null
     }
     catch (e: unknown) {
       error.value = e instanceof Error ? e.message : 'Une erreur est survenue.'
@@ -96,5 +112,5 @@ export const useMoodStore = defineStore('mood', () => {
     history.value = response.data.data
   }
 
-  return { form, moodProfile, tracks, history, loading, error, setForm, analyze, fetchHistory }
+  return { form, moodProfile, tracks, history, loading, error, activityMode, suggestedMode, setForm, setActivityMode, clearActivityMode, analyze, fetchHistory }
 })

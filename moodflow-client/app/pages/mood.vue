@@ -6,8 +6,15 @@ const { weather, coords, fetch: fetchWeather } = useWeather()
 
 onMounted(fetchWeather)
 
-type InputMode = 'emoji' | 'slider'
-const mode = ref<InputMode>('emoji')
+type InputTab = 'emoji' | 'slider' | 'activity'
+
+const tabs = [
+  { slot: 'emoji',    label: 'Emojis',    icon: 'i-heroicons-face-smile' },
+  { slot: 'slider',   label: 'Sliders',   icon: 'i-heroicons-adjustments-horizontal' },
+  { slot: 'activity', label: 'Activité',  icon: 'i-heroicons-bolt' },
+]
+
+const activeTab = ref<InputTab>('emoji')
 
 const sliderValues = computed(() => ({
   energy:    moodStore.form.energy,
@@ -15,7 +22,6 @@ const sliderValues = computed(() => ({
   intensity: moodStore.form.intensity,
 }))
 
-// Feature 1 — emoji click => playlist immediate, pas de bouton
 async function onEmojiSelect(payload: { emotion: string; energy: number; valence: number; intensity: number }) {
   moodStore.setForm({
     source:    'emoji',
@@ -37,9 +43,12 @@ function onSlidersUpdate(values: { energy: number; valence: number; intensity: n
   })
 }
 
-function switchMode(next: InputMode) {
-  mode.value = next
-  moodStore.setForm({ source: next, emotion: null })
+function onActivityDefaults(values: { energy: number; valence: number; intensity: number }) {
+  moodStore.setForm({
+    energy:    values.energy,
+    valence:   values.valence,
+    intensity: values.intensity,
+  })
 }
 
 // Feature 2 — sliders => emoji/emotion dynamique
@@ -58,23 +67,55 @@ const sliderMood = computed((): SliderMood => {
   return { emoji: '😴', label: 'Endormi' }
 })
 
-// Feature 3 — canvas réactif (MoodCanvas) — valeurs passées en props
-// Post-analyze : utilise les valeurs ajustées par le backend (météo/contexte)
-// Avant analyze : réagit aux sliders en temps réel
+// Feature 3 — canvas réactif
 const visualEnergy    = computed(() => moodStore.moodProfile?.energy    ?? moodStore.form.energy)
 const visualValence   = computed(() => moodStore.moodProfile?.valence   ?? moodStore.form.valence)
 const visualIntensity = computed(() => moodStore.moodProfile?.intensity ?? moodStore.form.intensity)
 
-// Sync la playlist dans le store player quand les tracks arrivent
 const playerStore = usePlayerStore()
 watch(() => moodStore.tracks, (tracks) => {
   playerStore.setPlaylist(tracks)
 })
 
 const toast = useToast()
+
 watch(() => moodStore.error, (err) => {
   if (err) toast.add({ title: 'Erreur', description: err, color: 'error' })
 })
+
+watch(() => moodStore.suggestedMode, (suggested) => {
+  if (!suggested || moodStore.activityMode) return
+  toast.add({
+    title: 'Il pleut dehors 🌧️ — Mode Rainy Day suggéré',
+    color: 'info',
+    actions: [{
+      label: 'Activer',
+      onClick: () => {
+        moodStore.setActivityMode('rainy_day', { energy: 30, valence: -0.1, intensity: 40 })
+        moodStore.suggestedMode = null
+      },
+    }],
+  })
+})
+
+// Label/emoji du mode actif pour le badge
+const ACTIVITY_MODE_META: Record<string, { label: string; emoji: string }> = {
+  focus:      { label: 'Concentration', emoji: '🎯' },
+  sleep:      { label: 'Sommeil',       emoji: '😴' },
+  workout:    { label: 'Sport',         emoji: '💪' },
+  morning:    { label: 'Matin',         emoji: '🌅' },
+  destress:   { label: 'Décompression', emoji: '🧘' },
+  commute:    { label: 'Trajet',        emoji: '🚇' },
+  motivation: { label: 'Motivation',    emoji: '🚀' },
+  soiree:     { label: 'Soirée',        emoji: '🎉' },
+  meditation: { label: 'Méditation',    emoji: '☯️' },
+  cuisiner:   { label: 'Cuisine',       emoji: '👨‍🍳' },
+  rainy_day:  { label: 'Jour de pluie', emoji: '🌧️' },
+}
+
+const activeModeMeta = computed(() =>
+  moodStore.activityMode ? ACTIVITY_MODE_META[moodStore.activityMode] ?? null : null,
+)
 </script>
 
 <template>
@@ -95,106 +136,110 @@ watch(() => moodStore.error, (err) => {
     <UCard class="bg-gray-900/60 backdrop-blur border border-white/10">
       <div class="space-y-8">
 
-        <!-- Toggle mode -->
-        <div class="flex justify-center">
-          <div class="inline-flex rounded-xl bg-white/5 p-1 gap-1">
-            <button
-              type="button"
-              class="px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-              :class="mode === 'emoji'
-                ? 'bg-primary-500 text-white shadow'
-                : 'text-gray-400 hover:text-white'"
-              @click="switchMode('emoji')"
-            >
-              Emoji
-            </button>
-            <button
-              type="button"
-              class="px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-              :class="mode === 'slider'
-                ? 'bg-primary-500 text-white shadow'
-                : 'text-gray-400 hover:text-white'"
-              @click="switchMode('slider')"
-            >
-              Sliders
-            </button>
-          </div>
-        </div>
+        <!-- Tabs -->
+        <UTabs
+          :items="tabs"
+          :default-value="activeTab"
+          @update:model-value="(v) => activeTab = v as InputTab"
+        >
+          <template #emoji>
+            <div class="space-y-6 pt-4">
+              <MoodEmojiPicker @select="onEmojiSelect" />
 
-        <!-- Input panels -->
+              <!-- Emotion sélectionnée -->
+              <Transition
+                enter-active-class="transition duration-200"
+                enter-from-class="opacity-0 scale-95"
+                enter-to-class="opacity-100 scale-100"
+                leave-active-class="transition duration-150"
+                leave-from-class="opacity-100 scale-100"
+                leave-to-class="opacity-0 scale-95"
+              >
+                <div
+                  v-if="moodStore.form.emotion"
+                  class="flex items-center justify-center gap-2 py-2"
+                >
+                  <UBadge size="lg" color="primary" variant="soft">
+                    {{ moodStore.form.emotion }}
+                    — énergie {{ moodStore.form.energy }}%
+                    · intensité {{ moodStore.form.intensity }}%
+                  </UBadge>
+                </div>
+              </Transition>
+            </div>
+          </template>
+
+          <template #slider>
+            <div class="space-y-6 pt-4">
+              <MoodSliders
+                :model-value="sliderValues"
+                @update:model-value="onSlidersUpdate"
+              />
+
+              <!-- Feature 2 : feedback emoji/emotion -->
+              <div class="flex items-center justify-center gap-3 py-2">
+                <span class="text-4xl leading-none transition-all duration-300">{{ sliderMood.emoji }}</span>
+                <span class="text-lg font-semibold text-white">{{ sliderMood.label }}</span>
+              </div>
+
+              <UButton
+                size="xl"
+                block
+                :loading="moodStore.loading"
+                :disabled="moodStore.loading"
+                @click="moodStore.analyze(coords)"
+              >
+                <UIcon name="i-heroicons-musical-note" class="w-5 h-5" />
+                Générer ma playlist
+              </UButton>
+            </div>
+          </template>
+
+          <template #activity>
+            <div class="space-y-6 pt-4">
+              <MoodActivityModeSelector
+                :model-value="moodStore.activityMode"
+                @update:model-value="(slug) => slug ? moodStore.setActivityMode(slug) : moodStore.clearActivityMode()"
+                @defaults="onActivityDefaults"
+              />
+
+              <UButton
+                v-if="moodStore.activityMode"
+                size="xl"
+                block
+                :loading="moodStore.loading"
+                :disabled="moodStore.loading"
+                @click="moodStore.analyze(coords)"
+              >
+                <UIcon name="i-heroicons-musical-note" class="w-5 h-5" />
+                Générer ma playlist
+              </UButton>
+            </div>
+          </template>
+        </UTabs>
+
+        <!-- Badge mode actif (visible dans tous les tabs) -->
         <Transition
           enter-active-class="transition duration-200 ease-out"
-          enter-from-class="opacity-0 translate-y-2"
-          enter-to-class="opacity-100 translate-y-0"
-          leave-active-class="transition duration-150 ease-in"
-          leave-from-class="opacity-100 translate-y-0"
-          leave-to-class="opacity-0 -translate-y-2"
-          mode="out-in"
-        >
-          <MoodEmojiPicker
-            v-if="mode === 'emoji'"
-            key="emoji"
-            @select="onEmojiSelect"
-          />
-          <MoodSliders
-            v-else
-            key="slider"
-            :model-value="sliderValues"
-            @update:model-value="onSlidersUpdate"
-          />
-        </Transition>
-
-        <!-- Feature 2 : feedback emoji/emotion pour le mode slider -->
-        <Transition
-          enter-active-class="transition duration-300"
-          enter-from-class="opacity-0 scale-90"
-          enter-to-class="opacity-100 scale-100"
-          leave-active-class="transition duration-200"
-          leave-from-class="opacity-100 scale-100"
-          leave-to-class="opacity-0 scale-90"
-        >
-          <div
-            v-if="mode === 'slider'"
-            class="flex items-center justify-center gap-3 py-2"
-          >
-            <span class="text-4xl leading-none transition-all duration-300">{{ sliderMood.emoji }}</span>
-            <span class="text-lg font-semibold text-white">{{ sliderMood.label }}</span>
-          </div>
-        </Transition>
-
-        <!-- Emotion selectionnée (mode emoji) -->
-        <Transition
-          enter-active-class="transition duration-200"
           enter-from-class="opacity-0 scale-95"
           enter-to-class="opacity-100 scale-100"
-          leave-active-class="transition duration-150"
+          leave-active-class="transition duration-150 ease-in"
           leave-from-class="opacity-100 scale-100"
           leave-to-class="opacity-0 scale-95"
         >
-          <div
-            v-if="mode === 'emoji' && moodStore.form.emotion"
-            class="flex items-center justify-center gap-2 py-2"
-          >
-            <UBadge size="lg" color="primary" variant="soft">
-              {{ moodStore.form.emotion }}
-              — énergie {{ moodStore.form.energy }}%
-              · intensité {{ moodStore.form.intensity }}%
+          <div v-if="activeModeMeta" class="flex justify-center">
+            <UBadge
+              size="md"
+              color="primary"
+              variant="soft"
+              class="cursor-pointer gap-1.5"
+              @click="moodStore.clearActivityMode()"
+            >
+              {{ activeModeMeta.emoji }} {{ activeModeMeta.label }}
+              <UIcon name="i-heroicons-x-mark" class="w-3.5 h-3.5" />
             </UBadge>
           </div>
         </Transition>
-
-        <!-- Bouton générer (slider uniquement — en emoji c'est auto) -->
-        <UButton
-          v-if="mode === 'slider'"
-          size="xl"
-          block
-          :loading="moodStore.loading"
-          :disabled="moodStore.loading"
-          @click="moodStore.analyze(coords)"
-        >
-          <UIcon name="i-heroicons-musical-note" class="w-5 h-5" />
-          Générer ma playlist
-        </UButton>
 
       </div>
     </UCard>
@@ -205,7 +250,7 @@ watch(() => moodStore.error, (err) => {
       enter-from-class="opacity-0"
       enter-to-class="opacity-100"
     >
-      <div v-if="mode === 'emoji' && moodStore.loading" class="mt-8 flex justify-center">
+      <div v-if="activeTab === 'emoji' && moodStore.loading" class="mt-8 flex justify-center">
         <div class="flex items-center gap-3 text-primary-400">
           <UIcon name="i-heroicons-musical-note" class="w-6 h-6 animate-bounce" />
           <span class="text-sm font-medium">Génération de ta playlist…</span>
