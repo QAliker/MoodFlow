@@ -11,8 +11,16 @@ class ActivityModeController extends Controller
 
     public function index(): JsonResponse
     {
-        return response()->json([
-            'data' => array_values($this->activityMode->all()),
-        ]);
+        $modes = array_map(
+            fn (array $m) => [
+                'slug'        => $m['slug'],
+                'label'       => $m['label'],
+                'emoji'       => $m['emoji'],
+                'description' => $m['description'],
+            ],
+            array_values($this->activityMode->all()),
+        );
+
+        return response()->json(['data' => $modes]);
     }
 }

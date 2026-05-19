@@ -40,10 +40,16 @@ class MoodController extends Controller
 
         $result = $this->moodService->recommend($request->user(), $moodInput);
 
+        $suggestedMode = null;
+        if ($weather === 'rain' && ($data['activity_mode'] ?? null) === null) {
+            $suggestedMode = 'rainy_day';
+        }
+
         return response()->json([
             'data' => [
-                'mood'   => $result['mood'],
-                'tracks' => $result['tracks'],
+                'mood'           => $result['mood'],
+                'tracks'         => $result['tracks'],
+                'suggested_mode' => $suggestedMode,
             ],
             'message' => 'Mood analyzed successfully.',
         ], 201);
