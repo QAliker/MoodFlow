@@ -13,10 +13,13 @@ class ActivityModeController extends Controller
     {
         $modes = array_map(
             fn (array $m) => [
-                'slug'        => $m['slug'],
-                'label'       => $m['label'],
-                'emoji'       => $m['emoji'],
-                'description' => $m['description'],
+                'slug'      => $m['slug'],
+                'label'     => $m['label'],
+                'emoji'     => $m['emoji'],
+                'energy'    => $m['energy'],
+                'valence'   => $m['valence'],
+                'intensity' => $m['intensity'],
+                'keywords'  => $m['keywords'],
             ],
             array_values($this->activityMode->all()),
         );
