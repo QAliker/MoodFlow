@@ -4,6 +4,7 @@ use App\Http\Controllers\ActivityModeController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GenreController;
 use App\Http\Controllers\MoodController;
+use App\Http\Controllers\MoodDnaController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WeatherController;
 use Illuminate\Support\Facades\Route;
@@ -19,6 +20,8 @@ Route::get('/weather', WeatherController::class);
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/users/me', [UserController::class, 'me']);
     Route::put('/users/me/genres', [UserController::class, 'updateGenres']);
+
+    Route::get('/mood/dna', MoodDnaController::class);
 
     Route::middleware('has.genres')->group(function (): void {
         Route::post('/mood/analyze', [MoodController::class, 'analyze']);
