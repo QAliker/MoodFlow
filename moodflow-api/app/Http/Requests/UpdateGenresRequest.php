@@ -14,7 +14,7 @@ class UpdateGenresRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'genre_ids'   => ['required', 'array', 'min:3', 'max:5'],
+            'genre_ids'   => ['required', 'array', 'min:1', 'max:3'],
             'genre_ids.*' => ['integer', 'exists:genres,id'],
         ];
     }

@@ -10,8 +10,8 @@ const emit = defineEmits<{
   'update:modelValue': [value: number[]]
 }>()
 
-const MIN = 3
-const MAX = 5
+const MIN = 1
+const MAX = 3
 
 function toggle(id: number): void {
   const selected = [...props.modelValue]

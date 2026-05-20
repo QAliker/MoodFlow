@@ -9,8 +9,8 @@ const toast = useToast()
 const selectedIds = ref<number[]>([])
 const submitting = ref(false)
 
-const MIN = 3
-const MAX = 5
+const MIN = 1
+const MAX = 3
 const isValid = computed(() => selectedIds.value.length >= MIN && selectedIds.value.length <= MAX)
 
 await genreStore.fetchGenres()
@@ -50,7 +50,7 @@ async function submit(): Promise<void> {
           Tes genres musicaux
         </h1>
         <p class="text-gray-400 max-w-md mx-auto leading-relaxed">
-          Choisis entre <span class="text-primary-400 font-medium">3 et 5 genres</span> pour que MoodFlow puisse te recommander la musique parfaite selon ton humeur.
+          Choisis entre <span class="text-primary-400 font-medium">1 et 3 genres</span> pour que MoodFlow puisse te recommander la musique parfaite selon ton humeur.
         </p>
       </div>
 
