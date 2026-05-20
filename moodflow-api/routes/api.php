@@ -23,5 +23,6 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::middleware('has.genres')->group(function (): void {
         Route::post('/mood/analyze', [MoodController::class, 'analyze']);
         Route::get('/mood/history', [MoodController::class, 'history']);
+        Route::get('/mood/stats', [MoodController::class, 'stats']);
     });
 });

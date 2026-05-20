@@ -37,6 +37,7 @@ class MoodService
         [$label, $primary, $secondary] = $this->resolveKeywords($adjusted['energy'], $adjusted['valence'], $moodInput);
 
         $user->loadMissing('genres');
+        $genreNames = $user->genres->pluck('name')->all();
         $tracks = $this->fetchTracks(
             $user->genres,
             $primary,
@@ -44,7 +45,7 @@ class MoodService
             $moodInput['mode_genres_boost'] ?? [],
         );
 
-        $mood = $this->saveMood($user, $moodInput, $adjusted, $modifier, $label, $tracks, $modeSlug);
+        $mood = $this->saveMood($user, $moodInput, $adjusted, $modifier, $label, $tracks, $modeSlug, $genreNames);
 
         if ($modeSlug !== null) {
             ActivityModeUsage::create([
@@ -175,6 +176,7 @@ class MoodService
         string $label,
         array $tracks,
         ?string $modeSlug,
+        array $genreNames = [],
     ): Mood {
         return Mood::create([
             'user_id'   => $user->id,
@@ -188,6 +190,7 @@ class MoodService
                 'modifier'      => $modifier,
                 'adjusted'      => $adjusted,
                 'activity_mode' => $modeSlug,
+                'genres'        => $genreNames,
             ],
             'tracks'    => $tracks,
         ]);

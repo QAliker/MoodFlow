@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class Mood extends Model
@@ -19,11 +20,20 @@ class Mood extends Model
 
     protected $casts = [
         'context' => 'array',
-        'tracks' => 'array',
+        'tracks'  => 'array',
     ];
 
     public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function scopeForPeriod(Builder $query, string $period): Builder
+    {
+        return match ($period) {
+            'week'  => $query->where('created_at', '>=', now()->subWeek()),
+            'month' => $query->where('created_at', '>=', now()->subMonth()),
+            default => $query,
+        };
     }
 }

@@ -3,16 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\AnalyzeMoodRequest;
+use App\Http\Requests\MoodHistoryRequest;
+use App\Http\Requests\MoodStatsRequest;
+use App\Services\MoodDashboardService;
 use App\Services\MoodService;
 use App\Services\WeatherService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class MoodController extends Controller
 {
     public function __construct(
-        private readonly MoodService $moodService,
-        private readonly WeatherService $weatherService,
+        private readonly MoodService          $moodService,
+        private readonly WeatherService       $weatherService,
+        private readonly MoodDashboardService $dashboardService,
     ) {}
 
     public function analyze(AnalyzeMoodRequest $request): JsonResponse
@@ -55,15 +58,39 @@ class MoodController extends Controller
         ], 201);
     }
 
-    public function history(Request $request): JsonResponse
+    public function history(MoodHistoryRequest $request): JsonResponse
     {
+        $period = $request->validated()['period'] ?? 'all';
+
         $moods = $request->user()
             ->moods()
+            ->forPeriod($period)
             ->latest()
-            ->paginate(20);
+            ->paginate(20)
+            ->through(fn($mood) => [
+                'id'            => $mood->id,
+                'date'          => $mood->created_at->toDateString(),
+                'time'          => $mood->created_at->format('H:i'),
+                'source'        => $mood->source,
+                'emotion'       => $mood->emotion,
+                'energy'        => $mood->energy,
+                'valence'       => $mood->valence,
+                'intensity'     => $mood->intensity,
+                'activity_mode' => $mood->context['activity_mode'] ?? null,
+                'weather'       => $mood->context['weather'] ?? null,
+                'tracks'        => collect($mood->tracks ?? [])
+                    ->map(fn(array $t) => ['title' => $t['title'], 'artist' => $t['artist']])
+                    ->all(),
+            ]);
 
-        return response()->json([
-            'data' => $moods,
-        ]);
+        return response()->json(['data' => $moods]);
+    }
+
+    public function stats(MoodStatsRequest $request): JsonResponse
+    {
+        $period = $request->validated()['period'] ?? 'month';
+        $stats  = $this->dashboardService->stats($request->user(), $period);
+
+        return response()->json(['data' => $stats]);
     }
 }
