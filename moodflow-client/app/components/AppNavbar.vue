@@ -7,6 +7,7 @@ const navLinks = [
   { to: '/', label: 'Accueil', icon: 'i-heroicons-home' },
   { to: '/mood', label: 'Analyser', icon: 'i-heroicons-face-smile' },
   { to: '/dashboard', label: 'Dashboard', icon: 'i-heroicons-chart-bar' },
+  { to: '/dna', label: 'Mon DNA', icon: 'i-heroicons-sparkles' },
 ]
 
 const items = [[
