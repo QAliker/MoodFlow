@@ -129,6 +129,9 @@ export function useVisual(canvasRef: Ref<HTMLCanvasElement | null>) {
   let particles: Particle[] = []
   let audioData: Uint8Array = new Uint8Array(0)
 
+  let frameCount = 0
+  let readyCallback: (() => void) | null = null
+
   let currentTheme: Theme = 'aurora'
   let nextTheme: Theme = 'aurora'
   let transitionStart = 0
@@ -325,6 +328,12 @@ export function useVisual(canvasRef: Ref<HTMLCanvasElement | null>) {
     ctx.globalAlpha = 1
     ctx.shadowBlur  = 0
 
+    frameCount++
+    if (frameCount === 3 && readyCallback) {
+      readyCallback()
+      readyCallback = null
+    }
+
     rafId = requestAnimationFrame(frame)
   }
 
@@ -345,11 +354,16 @@ export function useVisual(canvasRef: Ref<HTMLCanvasElement | null>) {
 
   // ── Public API ───────────────────────────────────────────────────────────
 
-  function start() {
+  function start(onReady?: () => void) {
     if (!import.meta.client) return
-    if (!setupCanvas()) return
+    readyCallback = onReady ?? null
+    if (!setupCanvas()) {
+      if (readyCallback) { readyCallback(); readyCallback = null }
+      return
+    }
     initParticles(THEMES[currentTheme])
     lastTs = performance.now()
+    frameCount = 0
     rafId = requestAnimationFrame(frame)
     setupResize()
   }

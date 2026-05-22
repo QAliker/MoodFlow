@@ -74,14 +74,11 @@ function downloadDna(): void {
 </script>
 
 <template>
-  <UContainer class="py-12 max-w-2xl">
-    <!-- Loading -->
-    <div v-if="dnaStore.loading" class="flex justify-center py-24" role="status" aria-label="Chargement...">
-      <UIcon name="i-heroicons-arrow-path" class="w-10 h-10 animate-spin text-primary-500" />
-    </div>
+  <PageLoadingOverlay :show="dnaStore.loading" />
 
+  <UContainer class="py-12 max-w-2xl">
     <!-- Error -->
-    <div v-else-if="dnaStore.error" class="text-center py-16">
+    <div v-if="dnaStore.error" class="text-center py-16">
       <UIcon name="i-heroicons-exclamation-circle" class="w-12 h-12 text-red-500 mx-auto mb-4" />
       <p class="text-gray-500">{{ dnaStore.error }}</p>
       <UButton class="mt-4" @click="dnaStore.fetchDna()">Réessayer</UButton>

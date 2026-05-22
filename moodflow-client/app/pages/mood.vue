@@ -72,6 +72,8 @@ const visualEnergy    = computed(() => moodStore.moodProfile?.energy    ?? moodS
 const visualValence   = computed(() => moodStore.moodProfile?.valence   ?? moodStore.form.valence)
 const visualIntensity = computed(() => moodStore.moodProfile?.intensity ?? moodStore.form.intensity)
 
+const showOverlay = computed(() => moodStore.loading)
+
 const playerStore = usePlayerStore()
 watch(() => moodStore.tracks, (tracks) => {
   playerStore.setPlaylist(tracks)
@@ -119,6 +121,8 @@ const activeModeMeta = computed(() =>
 </script>
 
 <template>
+  <PageLoadingOverlay :show="showOverlay" />
+
   <!-- Feature 3 — canvas particules réactif au mood -->
   <VisualMoodCanvas
     :energy="visualEnergy"
@@ -244,32 +248,17 @@ const activeModeMeta = computed(() =>
       </div>
     </UCard>
 
-    <!-- Loading indicator mode emoji -->
-    <Transition
-      enter-active-class="transition duration-200"
-      enter-from-class="opacity-0"
-      enter-to-class="opacity-100"
-    >
-      <div v-if="activeTab === 'emoji' && moodStore.loading" class="mt-8 flex justify-center">
-        <div class="flex items-center gap-3 text-primary-400">
-          <UIcon name="i-heroicons-musical-note" class="w-6 h-6 animate-bounce" />
-          <span class="text-sm font-medium">Génération de ta playlist…</span>
-        </div>
-      </div>
-    </Transition>
-
     <!-- Résultats -->
-    <Transition
-      enter-active-class="transition duration-300 ease-out"
-      enter-from-class="opacity-0 translate-y-4"
-      enter-to-class="opacity-100 translate-y-0"
+    <div
+      v-show="moodStore.moodProfile"
+      class="mt-10 space-y-4 pb-24 transition-all duration-300 ease-out"
+      :class="moodStore.moodProfile ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'"
     >
-      <div v-if="moodStore.moodProfile" class="mt-10 space-y-4 pb-24">
         <!-- Mood résumé -->
         <div class="flex items-center justify-between">
           <div>
             <h2 class="text-xl font-bold text-white capitalize">
-              {{ moodStore.moodProfile.emotion }}
+              {{ moodStore.moodProfile?.emotion }}
             </h2>
             <p class="text-sm text-gray-400 mt-0.5">
               {{ moodStore.tracks.length }} tracks générées
@@ -277,10 +266,10 @@ const activeModeMeta = computed(() =>
           </div>
           <div class="flex gap-2">
             <UBadge variant="soft" color="primary" size="sm">
-              Énergie {{ moodStore.moodProfile.energy }}%
+              Énergie {{ moodStore.moodProfile?.energy }}%
             </UBadge>
             <UBadge variant="soft" color="warning" size="sm">
-              Intensité {{ moodStore.moodProfile.intensity }}%
+              Intensité {{ moodStore.moodProfile?.intensity }}%
             </UBadge>
           </div>
         </div>
@@ -288,7 +277,6 @@ const activeModeMeta = computed(() =>
         <!-- Liste des tracks -->
         <MusicTrackList :tracks="moodStore.tracks" />
       </div>
-    </Transition>
   </UContainer>
 
   <!-- Player audio sticky en bas de page -->

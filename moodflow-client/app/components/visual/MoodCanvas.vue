@@ -5,6 +5,8 @@ const props = defineProps<{
   intensity: number
 }>()
 
+const emit = defineEmits<{ ready: [] }>()
+
 const canvasEl = ref<HTMLCanvasElement | null>(null)
 const { start, stop, updateMood, updateAudioData } = useVisual(canvasEl)
 const { getFrequencyData } = useAudio()
@@ -12,7 +14,7 @@ const { getFrequencyData } = useAudio()
 let audioInterval: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
-  start()
+  start(() => emit('ready'))
   updateMood(props.energy, props.valence, props.intensity)
   audioInterval = setInterval(() => updateAudioData(getFrequencyData()), 33)
 })
@@ -29,11 +31,9 @@ watch(
 </script>
 
 <template>
-  <Teleport to="body">
-    <canvas
-      ref="canvasEl"
-      class="fixed inset-0 w-full h-full pointer-events-none"
-      style="z-index: 0"
-    />
-  </Teleport>
+  <canvas
+    ref="canvasEl"
+    class="fixed inset-0 w-full h-full pointer-events-none"
+    style="z-index: 0"
+  />
 </template>
