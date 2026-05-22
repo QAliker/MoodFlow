@@ -4,7 +4,14 @@ definePageMeta({ middleware: 'auth' })
 const moodStore = useMoodStore()
 const { weather, coords, fetch: fetchWeather } = useWeather()
 
-onMounted(fetchWeather)
+onMounted(() => {
+  fetchWeather()
+  moodStore.fetchPrediction(coords.value)
+})
+
+watch(coords, (c) => {
+  if (c && !moodStore.prediction) moodStore.fetchPrediction(c)
+}, { once: true })
 
 type InputTab = 'emoji' | 'slider' | 'activity'
 
@@ -34,6 +41,7 @@ async function onEmojiSelect(payload: { emotion: string; energy: number; valence
 }
 
 function onSlidersUpdate(values: { energy: number; valence: number; intensity: number }) {
+  isPredicted.value = false
   moodStore.setForm({
     source:    'slider',
     emotion:   null,
@@ -41,6 +49,17 @@ function onSlidersUpdate(values: { energy: number; valence: number; intensity: n
     valence:   values.valence,
     intensity: values.intensity,
   })
+}
+
+function onApplyPrediction() {
+  const { energy, valence, intensity } = moodStore.prediction!.predicted_mood
+  moodStore.setForm({ source: 'slider', emotion: null, energy, valence, intensity })
+  if (moodStore.prediction!.suggested_activity) {
+    moodStore.setActivityMode(moodStore.prediction!.suggested_activity)
+  }
+  activeTab.value = 'slider'
+  bannerDismissed.value = true
+  isPredicted.value = true
 }
 
 function onActivityDefaults(values: { energy: number; valence: number; intensity: number }) {
@@ -73,6 +92,21 @@ const visualValence   = computed(() => moodStore.moodProfile?.valence   ?? moodS
 const visualIntensity = computed(() => moodStore.moodProfile?.intensity ?? moodStore.form.intensity)
 
 const showOverlay = computed(() => moodStore.loading)
+
+const bannerDismissed = ref(false)
+const isPredicted = ref(false)
+
+const showBanner = computed(() =>
+  moodStore.prediction !== null &&
+  moodStore.prediction.confidence > 0.5 &&
+  !bannerDismissed.value,
+)
+
+const showHint = computed(() =>
+  moodStore.prediction !== null &&
+  moodStore.prediction.confidence >= 0.3 &&
+  moodStore.prediction.confidence <= 0.5,
+)
 
 const playerStore = usePlayerStore()
 watch(() => moodStore.tracks, (tracks) => {
@@ -137,6 +171,15 @@ const activeModeMeta = computed(() =>
       <p class="text-gray-400 text-sm">Décris ton mood pour obtenir une playlist personnalisée.</p>
     </div>
 
+    <!-- Prediction banner -->
+    <MoodPredictionBanner
+      v-if="showBanner"
+      :prediction="moodStore.prediction!"
+      class="mb-6"
+      @apply="onApplyPrediction"
+      @dismiss="bannerDismissed = true"
+    />
+
     <UCard class="bg-gray-900/60 backdrop-blur border border-white/10">
       <div class="space-y-8">
 
@@ -175,16 +218,23 @@ const activeModeMeta = computed(() =>
 
           <template #slider>
             <div class="space-y-6 pt-4">
-              <MoodSliders
-                :model-value="sliderValues"
-                @update:model-value="onSlidersUpdate"
-              />
+              <div :class="isPredicted ? 'rounded-xl border border-dashed border-primary-500/50 p-3 transition-all duration-300' : ''">
+                <MoodSliders
+                  :model-value="sliderValues"
+                  @update:model-value="onSlidersUpdate"
+                />
+              </div>
 
               <!-- Feature 2 : feedback emoji/emotion -->
               <div class="flex items-center justify-center gap-3 py-2">
                 <span class="text-4xl leading-none transition-all duration-300">{{ sliderMood.emoji }}</span>
                 <span class="text-lg font-semibold text-white">{{ sliderMood.label }}</span>
               </div>
+
+              <!-- Prediction hint (confidence 0.3–0.5) -->
+              <p v-if="showHint" class="text-center text-xs text-gray-500 italic -mt-2">
+                {{ moodStore.prediction!.message }}
+              </p>
 
               <UButton
                 size="xl"

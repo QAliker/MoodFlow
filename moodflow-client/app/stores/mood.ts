@@ -30,6 +30,14 @@ export interface MoodForm {
   intensity: number
 }
 
+export interface MoodPrediction {
+  predicted_mood: { energy: number; valence: number; intensity: number }
+  confidence: number
+  based_on: number
+  suggested_activity: string | null
+  message: string
+}
+
 interface AnalyzePayload {
   source: string
   emotion?: string | null
@@ -59,6 +67,8 @@ export const useMoodStore = defineStore('mood', () => {
   const error = ref<string | null>(null)
   const activityMode = ref<string | null>(null)
   const suggestedMode = ref<string | null>(null)
+  const prediction = ref<MoodPrediction | null>(null)
+  const predictionLoading = ref(false)
 
   function setForm(values: Partial<MoodForm>) {
     form.value = { ...form.value, ...values }
@@ -73,6 +83,21 @@ export const useMoodStore = defineStore('mood', () => {
 
   function clearActivityMode() {
     activityMode.value = null
+  }
+
+  async function fetchPrediction(coords?: { lat: number; lon: number } | null): Promise<void> {
+    predictionLoading.value = true
+    try {
+      const params = coords ? `?lat=${coords.lat}&lon=${coords.lon}` : ''
+      const response = await apiFetch<MoodPrediction>(`/api/mood/predict${params}`)
+      prediction.value = response
+    }
+    catch {
+      // Prediction is non-critical — fail silently
+    }
+    finally {
+      predictionLoading.value = false
+    }
   }
 
   async function analyze(coords?: { lat: number; lon: number } | null): Promise<void> {
@@ -112,5 +137,5 @@ export const useMoodStore = defineStore('mood', () => {
     history.value = response.data.data
   }
 
-  return { form, moodProfile, tracks, history, loading, error, activityMode, suggestedMode, setForm, setActivityMode, clearActivityMode, analyze, fetchHistory }
+  return { form, moodProfile, tracks, history, loading, error, activityMode, suggestedMode, prediction, predictionLoading, setForm, setActivityMode, clearActivityMode, fetchPrediction, analyze, fetchHistory }
 })
