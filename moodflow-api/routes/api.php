@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GenreController;
 use App\Http\Controllers\MoodController;
 use App\Http\Controllers\MoodDnaController;
+use App\Http\Controllers\MoodPredictionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WeatherController;
 use Illuminate\Support\Facades\Route;
@@ -22,6 +23,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::put('/users/me/genres', [UserController::class, 'updateGenres']);
 
     Route::get('/mood/dna', MoodDnaController::class);
+    Route::get('/mood/predict', MoodPredictionController::class);
 
     Route::middleware('has.genres')->group(function (): void {
         Route::post('/mood/analyze', [MoodController::class, 'analyze']);
